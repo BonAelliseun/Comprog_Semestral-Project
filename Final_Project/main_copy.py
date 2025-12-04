@@ -1,10 +1,9 @@
 import tkinter as tk
-import time
-import winsound
+from pygame import mixer
 import os
 
 
-# This list would be where the timer is from and if the timer is currently couting
+# This list would be where the timer is from and if the timer is currently couting=
 # I used list so that it can be modfieid by functions
 values = {
         "timer": 1500,
@@ -12,8 +11,18 @@ values = {
         "cur_timer": None,
         "task_number": 1,
         "pomodoro_count": 0,
+        "timer_tpye": "pomodoro"
 }        
 
+def play_bg_sound():
+    path = os.path.dirname(__file__)
+    path = os.path.join(path, "sounds", "bg.ogg")
+    mixer.music.load(f"{path}")
+    mixer.music.play(-1)
+
+def load_sounds(music_name):
+    path = os.getcwd()
+    return mixer.sound(f"{path}\sounds\{music_name}")
 
 def change_display_timer():
         display_time = format_time_display(values["timer"])
@@ -45,13 +54,27 @@ def start_timer_controller():
 
 def start_timer():
     """Runs the countdown timer."""
-    print(values)
     if values["timer"] >= 0 and values["can_run"]: # only starts if timer is not 0 and if it can startvalues[2]
         change_display_timer()
         values["cur_timer"] = root.after(1000, start_timer) # stores current timer 
         values["timer"] -= 1
+    elif values["timer"] <= 0 and values["can_run"]:
+        if values["timer_tpye"] == "pomodoro":
+            values["pomodoro_count"] += 1
+        pomodoro_counter.config(text=values["pomodoro_count"])
+        timer_button.config(text="START")
+        
+        if values["timer_tpye"] == "pomodoro" and values["pomodoro_count"] % 4 == 0:
+            set_timer(4, "long-break")
+        elif values["timer_tpye"] == "short-break" or values["timer_tpye"] == "long-break":
+            set_timer(5, "pomodoro")
+        else:
+            set_timer(3, "short-break")
+ 
 
-def set_timer(seconds):
+def set_timer(seconds, type):
+    values["timer_tpye"] = type
+
     values["timer"] = seconds
     values["can_run"] = False
     if values["cur_timer"] != None:
@@ -61,14 +84,14 @@ def set_timer(seconds):
     timer_button.config(text="START")
 
 def update_task(button_content):
-    
-    
+    button_content["state"] = tk.DISABLED
     def edit_text(event):
-        def edit(event):
+        def edit():
             if len(task_name.get()) > 0:
                 button_content.config(text=task_name.get())
             button_content["state"] = tk.DISABLED
             edit_text_window.destroy()
+            button_content["state"] = tk.NORMAL
 
         update_window.destroy()
         edit_text_window = tk.Toplevel(root) 
@@ -78,20 +101,19 @@ def update_task(button_content):
         edit_text_window.minsize(200, 200)
         edit_text_window.columnconfigure(0, weight=1)
         edit_text_window.columnconfigure(1, weight=1) 
+        edit_text_window.protocol("WM_DELETE_WINDOW", lambda: enable_button(button_content, edit_text_window))
 
         task_name = tk.Entry(edit_text_window, width=edit_text_window.winfo_reqwidth())
         task_name.grid(row= 0, column=0, sticky="nsew")
 
-        done_button = tk.Button(edit_text_window, text="DONE", bg="red", font=("Regular", 16))
+        done_button = tk.Button(edit_text_window, text="DONE", bg="red", font=("Regular", 16), command=edit)
         done_button.grid(row= 1, column=0, sticky="nsew")
-        done_button.bind("<Button-1>", edit)
         
     def done(event):
         update_window.destroy()
         button_content.destroy()
         values["task_number"] -= 1
-        button_content["state"] = tk.DISABLED
-
+        
     update_window = tk.Toplevel(root) 
     update_window.title("New Window")
     update_window.geometry("200x100") 
@@ -99,6 +121,7 @@ def update_task(button_content):
     update_window.minsize(200, 100)
     update_window.columnconfigure(0, weight=1)
     update_window.columnconfigure(1, weight=1)
+    update_window.protocol("WM_DELETE_WINDOW", lambda: enable_button(button_content, update_window))
 
     edit_button = tk.Button(update_window, text="Edit", font=("Regular", 16))
     done_button = tk.Button(update_window, text="done", font=("Regular", 16))
@@ -109,21 +132,40 @@ def update_task(button_content):
     edit_button.bind("<Button-1>", edit_text)
     done_button.bind("<Button-1>", done)
 
+def enable_button(button, window):
+    button["state"] = tk.NORMAL
+    window.destroy()
+
+def add_task_text(task_name, window=None):
+    if len(task_name) > 0:      
+        new_task = tk.Button(scrollable_frame, text=task_name, font=("Arial", 12), bg="white", anchor="nw", command=lambda: update_task(new_task))
+        new_task.propagate(False)
+        new_task.grid(row=values["task_number"], column=0, sticky="ew", padx=5, pady=2)  
+        values["task_number"] += 1
+    add_task_button["state"] = tk.NORMAL
+
+    if window != None:
+        window.destroy()
+
+def save_tasks():
+    tasks = scrollable_frame.winfo_children()
+
+    with open("tasks.txt", "w") as f:
+        for i in tasks:
+            if i["text"].rfind("\n") == -1:
+                f.write(i["text"] + "\n")
+            else:
+                f.write(i["text"])
+        f.close()
+
+def retreive_tasks():
+    with open("tasks.txt", "r") as f:
+        tasks = f.readlines()
+        for i in tasks:
+            add_task_text(i)
+    f.close()
+
 def add_new_task():
-
-    def add_task_text(event):
-        if len(task_name.get()) > 0:      
-            new_task = tk.Button(scrollable_frame, text=task_name.get(), font=("Arial", 12), bg="white", anchor="nw", command=lambda: update_task(new_task))
-            new_task.propagate(False)
-            new_task.grid(row=values["task_number"], column=0, sticky="ew", padx=5, pady=2)  
-            values["task_number"] += 1
-        add_task_button["state"] = tk.NORMAL
-        new_window.destroy()
-
-    def enable_button(button):
-        button["state"] = tk.NORMAL
-        new_window.destroy()
-
     add_task_button["state"] = tk.DISABLED
 
     new_window = tk.Toplevel(root)  # Create a new window
@@ -133,23 +175,42 @@ def add_new_task():
     new_window.columnconfigure(0, weight=1)
     new_window.rowconfigure(0, weight=1)
     new_window.rowconfigure(1, weight=2)
-    new_window.protocol("WM_DELETE_WINDOW", lambda: enable_button(add_task_button))
+    new_window.protocol("WM_DELETE_WINDOW", lambda: enable_button(add_task_button, new_window))
 
     task_name = tk.Entry(new_window, width=new_window.winfo_reqwidth())
     task_name.grid(row= 0, column=0, sticky="nsew")
 
-    done_button = tk.Button(new_window, text="DONE", bg="red", font=("Regular", 16))
+    done_button = tk.Button(new_window, text="DONE", bg="red", font=("Regular", 16), command=lambda: add_task_text(task_name.get(), new_window))
     done_button.grid(row= 1, column=0, sticky="nsew")
-    done_button.bind("<Button-1>", add_task_text)
 
 def update_scrollregion(event):
     canvas.configure(scrollregion=canvas.bbox("all"))
 
-root = tk.Tk()
+def main_window_exit():
+    save_tasks()
+    root.destroy()
+    
 
+mixer.init()
+play_bg_sound()
+
+# ==========================================
+#              MAIN GUI SETUP
+# ==========================================
+
+root = tk.Tk()
+root.iconbitmap("bsu_logo.icon")
 root.geometry("750x500")
 root.config(bg="red")
 root.maxsize(750, 500)
+root.protocol("WM_DELETE_WINDOW", main_window_exit)
+
+# for some resposiveness
+root.grid_rowconfigure(0, weight=1)
+root.grid_columnconfigure(0, weight=1)
+root.grid_columnconfigure(1, weight=1)
+
+# --- LEFT PANEL (Timer) ---
 
 # left frame
 left_frame = tk.Frame(root, bg="purple", height=500, width=500)
@@ -201,13 +262,13 @@ timer_button = tk.Button(hero_frame, bg="white", text="START", font=("Regular", 
 timer_button.grid(row=1)
 
 # buttons
-pomodoro_button = tk.Button(button_frame, bg="white", text="Pomodoro", font=("Regular", 20), command=lambda: set_timer(1500))
+pomodoro_button = tk.Button(button_frame, bg="white", text="Pomodoro", font=("Regular", 20), command=lambda: set_timer(5, "pomodoro"))
 pomodoro_button.grid(row=0, column=0, sticky="nsew")
 
-short_button = tk.Button(button_frame, bg="white", text="Short-break", font=("Regular", 20), command=lambda: set_timer(300))
+short_button = tk.Button(button_frame, bg="white", text="Short-break", font=("Regular", 20), command=lambda: set_timer(300, "short-timer"))
 short_button.grid(row=0, column=1, sticky="nsew")
 
-long_button = tk.Button(button_frame, bg="white", text="Long-break", font=("Regular", 20), command=lambda: set_timer(900))
+long_button = tk.Button(button_frame, bg="white", text="Long-break", font=("Regular", 20), command=lambda: set_timer(900, "long-timer"))
 long_button.grid(row=0, column=2, sticky="nsew")
 
 """ Right Side of the Program """
@@ -247,13 +308,6 @@ scrollable_frame.bind("<Configure>", update_scrollregion)
 canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=canvas.winfo_reqwidth())
 scrollable_frame.grid_columnconfigure(0, weight=1)
 
-
-""" All """
-#
-root.grid_rowconfigure(0, weight=1)
-
-# so that frames resizes vertically
-root.grid_columnconfigure(0, weight=1)
-root.grid_columnconfigure(1, weight=1)
+retreive_tasks()
 
 root.mainloop()
